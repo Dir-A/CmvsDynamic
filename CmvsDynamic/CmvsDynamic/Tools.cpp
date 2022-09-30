@@ -28,7 +28,7 @@ VOID SetConsole()
 	AttachConsole(ATTACH_PARENT_PROCESS);
 	freopen_s(&streamconsole, "CONIN$", "r+t", stdin);
 	freopen_s(&streamconsole, "CONOUT$", "w+t", stdout);
-	SetConsoleTitleW(L"CmvsFileHook");
+	SetConsoleTitleW(L"CmvsDynamic");
 
 	CreateThread(NULL, NULL, SetConsoleTop, NULL, NULL, NULL);
 
