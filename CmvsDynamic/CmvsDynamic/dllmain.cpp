@@ -7,6 +7,7 @@
 std::string g_strFileName;
 std::vector<PDWORD> g_vlpTHIS;
 std::vector<std::string> g_vstrPackPath;
+PDWORD g_lpVtable = 0;
 LPCSTR g_lpString = 0;
 BOOL g_isInit = FALSE;
 
@@ -16,13 +17,13 @@ typedef HLOCAL(__thiscall* pReadFile)(
 	LPCSTR lpString,
 	LPCSTR lpFileName,
 	PDWORD lpSize);
-pReadFile rawReadFile = (pReadFile)0x00410350;
+pReadFile rawReadFile;
 
-typedef DWORD(__thiscall* pRegPack)(
+typedef DWORD(__thiscall* pGetPackInfo)(
 	PDWORD pTHIS,
 	DWORD dwUnKnow0,
 	DWORD dwUnKnow1);
-pRegPack rawRegPack = (pRegPack)0x004100F0;
+pGetPackInfo rawGetPackInfo = (pGetPackInfo)0x004100F0;
 
 BOOL ExtractPack()
 {
@@ -92,8 +93,18 @@ HLOCAL __fastcall newReadFile(DWORD* tThis, DWORD dwReserved, LPCSTR lpPackPath,
 	return rawReadFile(tThis, lpPackPath, lpString, lpFileName, lpSize);
 }
 
-DWORD __fastcall newRegPack(PDWORD pTHIS, DWORD dwReserved, DWORD dwUnKnow0, DWORD dwUnKnow1)
+DWORD __fastcall newGetPackInfo(PDWORD pTHIS, DWORD dwReserved, DWORD dwUnKnow0, DWORD dwUnKnow1)
 {
+	if (!g_lpVtable)
+	{
+		g_lpVtable = (PDWORD)*pTHIS;
+		rawReadFile = (pReadFile)g_lpVtable[3];
+		DetourTransactionBegin();
+		DetourUpdateThread(GetCurrentThread());
+		DetourAttach(&(PVOID&)rawReadFile, newReadFile);
+		DetourTransactionCommit();
+	}
+
 	if (!g_isInit)
 	{
 		PDWORD pPath = &dwUnKnow1 + 0x2;
@@ -105,7 +116,7 @@ DWORD __fastcall newRegPack(PDWORD pTHIS, DWORD dwReserved, DWORD dwUnKnow0, DWO
 		}
 	}
 
-	return rawRegPack(pTHIS, dwUnKnow0, dwUnKnow1);
+	return rawGetPackInfo(pTHIS, dwUnKnow0, dwUnKnow1);
 }
 
 VOID StartHook()
@@ -115,8 +126,7 @@ VOID StartHook()
 	DetourRestoreAfterWith();
 	DetourTransactionBegin();
 	DetourUpdateThread(GetCurrentThread());
-	DetourAttach(&(PVOID&)rawReadFile, newReadFile);
-	DetourAttach(&(PVOID&)rawRegPack, newRegPack);
+	DetourAttach(&(PVOID&)rawGetPackInfo, newGetPackInfo);
 	DetourTransactionCommit();
 }
 
