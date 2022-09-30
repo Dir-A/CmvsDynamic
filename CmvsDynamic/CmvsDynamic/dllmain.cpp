@@ -1,49 +1,57 @@
 #include <Windows.h>
 #include <detours.h>
 #include <iostream>
+#include <vector>
 #include "Tools.h"
 
-std::string g_strPackPath = ".\\data\\pack\\";
-std::string g_strPackName = "script.cpz";
 std::string g_strFileName;
-PDWORD g_lpUnKnow = 0;
+std::vector<PDWORD> g_vlpTHIS;
+std::vector<std::string> g_vstrPackPath;
+LPCSTR g_lpString = 0;
+BOOL g_isInit = FALSE;
 
 typedef HLOCAL(__thiscall* pReadFile)(
-	DWORD* tThis,
-	LPCSTR Path,
-	DWORD* lpUnKnow,
+	PDWORD tThis,
+	LPCSTR lpPackPath,
+	LPCSTR lpString,
 	LPCSTR lpFileName,
-	DWORD* lpSize);
+	PDWORD lpSize);
 pReadFile rawReadFile = (pReadFile)0x00410350;
 
 typedef DWORD(__thiscall* pRegPack)(
-	DWORD* pTHIS,
-	DWORD dwUnKnow,
+	PDWORD pTHIS,
+	DWORD dwUnKnow0,
 	DWORD dwUnKnow1);
 pRegPack rawRegPack = (pRegPack)0x004100F0;
 
-VOID Dump()
+BOOL ExtractPack()
 {
 	DWORD size = 0;
 	PDWORD hlocal = 0;
 	HANDLE hFile = 0;
-	DWORD pTHIS = 0;
+	size_t number = 0;
+	size_t i = 0;
+
+	if (g_vstrPackPath.size() == g_vlpTHIS.size())
+	{
+		for (; i < g_vstrPackPath.size(); i++)
+		{
+			std::cout << "M ->" << i << "<- " << "PackPath:" << g_vstrPackPath[i] << std::endl;
+		}
+	}
 
 	while (true)
 	{
+		std::cout << "PackNumber:";
+		std::cin >> number;
 		std::cout << std::endl;
-		std::cout << "InputFileNmae:";
+		std::cout << "FileName::";
 		std::cin >> g_strFileName;
 		std::cout << std::endl;
-		std::cout << "PackName:";
-		std::cin >> g_strPackName;
-		std::cout << std::endl;
-		std::cout << "THIS:";
-		std::cin >> std::hex >> pTHIS;
 
-		if (g_lpUnKnow)
+		if ((number <= i) && (!g_strFileName.empty()))
 		{
-			hlocal = (PDWORD)rawReadFile((PDWORD)pTHIS, (g_strPackPath + g_strPackName).c_str(), g_lpUnKnow, g_strFileName.c_str(), &size);
+			hlocal = (PDWORD)rawReadFile(g_vlpTHIS[number], g_vstrPackPath[number].c_str(), g_lpString, g_strFileName.c_str(), &size);
 			if (hlocal != NULL)
 			{
 				hFile = CreateFileA(g_strFileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -54,35 +62,50 @@ VOID Dump()
 					CloseHandle(hFile);
 					std::cout << "Dump:" << g_strFileName << std::endl;
 				}
+				else
+				{
+					std::cout << "CreateFile failed!!!" << std::endl;
+				}
 				LocalFree(hlocal);
+			}
+			else
+			{
+				std::cout << "ReadFile failed!!!" << std::endl;
 			}
 
 		}
 	}
 }
 
-HLOCAL __fastcall newReadFile(DWORD* tThis, DWORD dwReserved, LPCSTR lpPath, DWORD* lpUnKnow, LPCSTR lpFileName, DWORD* lpSize)
+HLOCAL __fastcall newReadFile(DWORD* tThis, DWORD dwReserved, LPCSTR lpPackPath, LPCSTR lpString, LPCSTR lpFileName, PDWORD lpSize)
 {
-	if (g_lpUnKnow == NULL)
+	if (!g_isInit)
 	{
-		CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)Dump, NULL, NULL, NULL);
+		g_lpString = lpString;
+		if (g_lpString != NULL)
+		{
+			g_isInit = TRUE;
+			CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)ExtractPack, NULL, NULL, NULL);
+		}
 	}
-	g_lpUnKnow = lpUnKnow;
 
-	return rawReadFile(tThis, lpPath, lpUnKnow, lpFileName, lpSize);
+	return rawReadFile(tThis, lpPackPath, lpString, lpFileName, lpSize);
 }
 
-DWORD __fastcall newRegPack(DWORD* pTHIS, DWORD dwReserved, DWORD dwUnKnow, DWORD dwUnKnow1)
+DWORD __fastcall newRegPack(PDWORD pTHIS, DWORD dwReserved, DWORD dwUnKnow0, DWORD dwUnKnow1)
 {
-	PDWORD pPath = &dwUnKnow1 + 0x2;
-	std::string path = (LPCSTR)*pPath;
-	if (path.find(".cpz") != std::string::npos)
+	if (!g_isInit)
 	{
-		std::cout << "Path:" << path << std::endl;
-		std::cout << "Addr:0x" << pTHIS << std::endl;
+		PDWORD pPath = &dwUnKnow1 + 0x2;
+		std::string path = (LPCSTR)*pPath;
+		if (path.find(".cpz") != std::string::npos)
+		{
+			g_vstrPackPath.push_back(path);
+			g_vlpTHIS.push_back(pTHIS);
+		}
 	}
 
-	return rawRegPack(pTHIS, dwUnKnow, dwUnKnow1);
+	return rawRegPack(pTHIS, dwUnKnow0, dwUnKnow1);
 }
 
 VOID StartHook()
