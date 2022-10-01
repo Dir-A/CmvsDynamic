@@ -107,8 +107,7 @@ DWORD __fastcall newGetPackInfo(PDWORD pTHIS, DWORD dwReserved, DWORD dwUnKnow0,
 
 	if (!g_isInit)
 	{
-		PDWORD pPath = &dwUnKnow1 + 0x2;
-		std::string path = (LPCSTR)*pPath;
+		std::string path = (LPCSTR)(&(&dwUnKnow1)[0x2])[0];
 		if (path.find(".cpz") != std::string::npos)
 		{
 			g_vstrPackPath.push_back(path);
